@@ -1,0 +1,40 @@
+.coming-soon {
+  min-height: calc(100vh - 72px);
+
+  display: grid;
+  place-content: center;
+
+  padding: 2rem;
+
+  text-align: center;
+}
+
+.icon {
+  margin-bottom: 1rem;
+
+  font-size: 3rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.5rem;
+
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+
+  color: var(--text-muted);
+}
+
+h1 {
+  margin: 0;
+
+  font-size: 2rem;
+}
+
+p:last-child {
+  max-width: 450px;
+
+  margin: 0.75rem auto 0;
+
+  color: var(--text-secondary);
+}

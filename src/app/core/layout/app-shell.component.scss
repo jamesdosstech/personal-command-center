@@ -1,0 +1,311 @@
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+
+  background: var(--app-background, #f5f5f5);
+  color: var(--app-text, #171717);
+}
+
+/* ─────────────────────────────
+     Sidebar
+  ───────────────────────────── */
+
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+
+  z-index: 50;
+
+  display: flex;
+  flex-direction: column;
+
+  width: 250px;
+
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+
+  background: var(--sidebar-background, #ffffff);
+
+  transition: transform 0.2s ease;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+
+  min-height: 72px;
+  padding: 0 1.25rem;
+
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+
+  color: inherit;
+  text-decoration: none;
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+
+  width: 2.25rem;
+  height: 2.25rem;
+
+  border-radius: 0.6rem;
+
+  background: #111;
+  color: #fff;
+
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.brand div {
+  display: grid;
+  line-height: 1.1;
+}
+
+.brand strong {
+  font-size: 0.95rem;
+}
+
+.brand div span {
+  font-size: 0.75rem;
+  opacity: 0.5;
+}
+
+.mobile-close {
+  display: none;
+}
+
+/* ─────────────────────────────
+     Navigation
+  ───────────────────────────── */
+
+.navigation {
+  flex: 1;
+
+  padding: 1.5rem 0.75rem;
+}
+
+.nav-section-label {
+  margin: 1rem 0 0.5rem;
+  padding: 0 0.75rem;
+
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+
+  opacity: 0.4;
+}
+
+.nav-section-label:first-child {
+  margin-top: 0;
+}
+
+.navigation a,
+.sidebar-footer a {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+
+  padding: 0.7rem 0.75rem;
+
+  border-radius: 0.5rem;
+
+  color: inherit;
+  text-decoration: none;
+
+  font-size: 0.9rem;
+
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.navigation a span,
+.sidebar-footer a span {
+  width: 1.25rem;
+
+  text-align: center;
+
+  opacity: 0.6;
+}
+
+.navigation a:hover,
+.sidebar-footer a:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.navigation a.active {
+  background: #111;
+  color: #fff;
+}
+
+.navigation a.active span {
+  opacity: 1;
+}
+
+/* ─────────────────────────────
+     Sidebar footer
+  ───────────────────────────── */
+
+.sidebar-footer {
+  padding: 0.75rem;
+
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* ─────────────────────────────
+     Main
+  ───────────────────────────── */
+
+.main-area {
+  width: calc(100% - 250px);
+  min-height: 100vh;
+
+  margin-left: 250px;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+
+  z-index: 40;
+
+  display: flex;
+  align-items: center;
+
+  height: 72px;
+  padding: 0 1.5rem;
+
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+}
+
+.topbar-spacer {
+  flex: 1;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.icon-button,
+.avatar,
+.menu-button {
+  border: 0;
+  cursor: pointer;
+}
+
+.icon-button {
+  width: 2.25rem;
+  height: 2.25rem;
+
+  border-radius: 0.5rem;
+
+  background: transparent;
+
+  font-size: 1.25rem;
+}
+
+.icon-button:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+
+  width: 2.25rem;
+  height: 2.25rem;
+
+  border-radius: 50%;
+
+  background: #111;
+  color: #fff;
+
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.menu-button {
+  display: none;
+
+  background: transparent;
+  font-size: 1.25rem;
+}
+
+.page-content {
+  min-height: calc(100vh - 72px);
+}
+
+/* ─────────────────────────────
+     Mobile
+  ───────────────────────────── */
+
+.sidebar-overlay {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(-100%);
+  }
+
+  .sidebar.sidebar-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay {
+    display: block;
+
+    position: fixed;
+    inset: 0;
+
+    z-index: 45;
+
+    border: 0;
+
+    background: rgba(0, 0, 0, 0.4);
+  }
+
+  .mobile-close {
+    display: block;
+
+    margin-left: auto;
+
+    border: 0;
+    background: transparent;
+
+    font-size: 1.5rem;
+    cursor: pointer;
+  }
+
+  .main-area {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .menu-button {
+    display: block;
+  }
+
+  .topbar {
+    padding: 0 1rem;
+  }
+
+  .page-content {
+    min-height: calc(100vh - 72px);
+  }
+}

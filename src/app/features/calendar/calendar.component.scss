@@ -1,0 +1,183 @@
+.calendar-page {
+  max-width: var(--content-width);
+
+  margin: 0 auto;
+
+  padding: 2rem;
+}
+
+.page-header {
+  margin-bottom: 2rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.5rem;
+
+  font-size: 0.7rem;
+
+  font-weight: 700;
+
+  letter-spacing: 0.12em;
+
+  color: var(--text-muted);
+}
+
+h1 {
+  margin: 0;
+
+  font-size: clamp(2rem, 4vw, 3rem);
+
+  letter-spacing: -0.04em;
+}
+
+.subtitle {
+  margin: 0.5rem 0 0;
+
+  color: var(--text-secondary);
+}
+
+/* Events */
+
+.event-list {
+  display: grid;
+
+  gap: 0.75rem;
+}
+
+.event-card {
+  display: grid;
+
+  grid-template-columns:
+    110px
+    1fr
+    auto;
+
+  align-items: center;
+
+  gap: 1.5rem;
+
+  padding: 1.25rem;
+
+  border: 1px solid var(--border);
+
+  border-radius: var(--radius-lg);
+
+  background: var(--surface);
+
+  box-shadow: var(--shadow-sm);
+}
+
+.event-time {
+  display: grid;
+
+  gap: 0.2rem;
+}
+
+.event-time strong {
+  font-size: 0.9rem;
+}
+
+.event-time span {
+  font-size: 0.75rem;
+
+  color: var(--text-muted);
+}
+
+.event-content {
+  min-width: 0;
+}
+
+.event-content h2 {
+  margin: 0;
+
+  font-size: 1rem;
+}
+
+.event-content p {
+  margin: 0.35rem 0 0;
+
+  font-size: 0.75rem;
+
+  color: var(--text-secondary);
+}
+
+.calendar-name {
+  display: inline-block;
+
+  margin-top: 0.5rem;
+
+  padding: 0.2rem 0.45rem;
+
+  border-radius: 999px;
+
+  background: var(--background);
+
+  font-size: 0.6rem;
+
+  color: var(--text-muted);
+}
+
+.event-duration {
+  font-size: 0.7rem;
+
+  color: var(--text-muted);
+}
+
+/* Empty / loading */
+
+.calendar-state {
+  display: grid;
+
+  justify-items: center;
+
+  gap: 0.5rem;
+
+  padding: 5rem 2rem;
+
+  border: 1px dashed var(--border-strong);
+
+  border-radius: var(--radius-lg);
+
+  text-align: center;
+}
+
+.calendar-state > span {
+  font-size: 2.5rem;
+}
+
+.calendar-state h2,
+.calendar-state p {
+  margin: 0;
+}
+
+.calendar-state p {
+  color: var(--text-secondary);
+}
+
+/* Mobile */
+
+@media (max-width: 650px) {
+  .calendar-page {
+    padding: 1rem;
+  }
+
+  .event-card {
+    grid-template-columns: 1fr auto;
+
+    gap: 0.75rem;
+  }
+
+  .event-time {
+    grid-column: 1;
+  }
+
+  .event-content {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .event-duration {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}

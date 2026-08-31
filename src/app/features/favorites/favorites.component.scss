@@ -1,0 +1,236 @@
+.favorites-page {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  opacity: 0.6;
+}
+
+h1 {
+  margin: 0;
+  font-size: 2.5rem;
+}
+
+.subtitle {
+  margin: 0.5rem 0 0;
+  opacity: 0.65;
+}
+
+.add-button {
+  padding: 0.75rem 1.25rem;
+  border: 0;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.favorites-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.favorite-card {
+  position: relative;
+  border: 1px solid rgba(128, 128, 128, 0.25);
+  border-radius: 0.75rem;
+  transition: transform 0.15s ease;
+}
+
+.favorite-card:hover {
+  transform: translateY(-2px);
+}
+
+.favorite-link {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.favorite-icon {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  flex-shrink: 0;
+  border-radius: 0.5rem;
+  background: rgba(128, 128, 128, 0.12);
+  font-size: 1.5rem;
+}
+
+.favorite-content {
+  min-width: 0;
+}
+
+.favorite-content h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.favorite-content p {
+  margin: 0.35rem 0 0;
+  font-size: 0.875rem;
+  opacity: 0.6;
+}
+
+.delete-button {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+
+  font-size: 1.25rem;
+  opacity: 0.4;
+}
+
+.delete-button:hover {
+  opacity: 1;
+}
+
+.empty-state {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  padding: 6rem 2rem;
+  border: 1px dashed rgba(128, 128, 128, 0.4);
+  border-radius: 1rem;
+}
+
+.empty-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.empty-state h2 {
+  margin: 0;
+}
+
+.empty-state p {
+  max-width: 450px;
+  opacity: 0.65;
+}
+
+.form-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+
+  display: grid;
+  place-items: center;
+
+  padding: 1rem;
+
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.favorite-form {
+  width: min(100%, 500px);
+  padding: 2rem;
+
+  border: 1px solid rgba(128, 128, 128, 0.25);
+  border-radius: 1rem;
+
+  background: var(--surface, white);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+
+.form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+
+  margin-bottom: 1.5rem;
+}
+
+.form-header h2 {
+  margin: 0;
+}
+
+.close-button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+
+  font-size: 1.75rem;
+  line-height: 1;
+
+  opacity: 0.5;
+}
+
+.favorite-form form {
+  display: grid;
+  gap: 1rem;
+}
+
+.favorite-form label {
+  display: grid;
+  gap: 0.4rem;
+
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.favorite-form input,
+.favorite-form select {
+  width: 100%;
+  box-sizing: border-box;
+
+  padding: 0.75rem;
+
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  border-radius: 0.5rem;
+
+  background: transparent;
+  color: inherit;
+
+  font: inherit;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+
+  margin-top: 0.75rem;
+}
+
+.cancel-button,
+.save-button {
+  padding: 0.7rem 1.1rem;
+
+  border: 0;
+  border-radius: 0.5rem;
+
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.cancel-button {
+  background: rgba(128, 128, 128, 0.12);
+}
+
+.save-button {
+  background: #111;
+  color: white;
+}
