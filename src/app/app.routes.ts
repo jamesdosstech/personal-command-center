@@ -45,6 +45,13 @@ export const routes: Routes = [
             (m) => m.CalendarComponent
           ),
       },
+      {
+        path: 'events',
+        loadComponent: () =>
+          import('./features/events/events.component').then(
+            (m) => m.EventsComponent
+          ),
+      },
 
       {
         path: 'notes',

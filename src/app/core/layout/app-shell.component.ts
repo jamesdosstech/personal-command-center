@@ -80,7 +80,14 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
           </a>
 
           <p class="nav-section-label">PERSONAL</p>
-
+          <a
+            routerLink="/events"
+            routerLinkActive="active"
+            (click)="closeSidebar()"
+          >
+            <span>🎧</span>
+            Events
+          </a>
           <a
             routerLink="/favorites"
             routerLinkActive="active"

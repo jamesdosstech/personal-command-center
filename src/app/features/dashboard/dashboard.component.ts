@@ -6,6 +6,7 @@ import { WeatherService } from '../../core/services/weather.service';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { JobsService } from '../../core/services/jobs.service';
 import { CalendarService } from '../../core/services/calendar.service';
+import { EventsService } from '../../core/services/events.service';
 
 interface FocusItem {
   id: string;
@@ -410,6 +411,73 @@ interface FocusItem {
 
           }
         </section>
+        <!-- Local Events -->
+        <section class="dashboard-card events-card">
+          <div class="card-header">
+            <div>
+              <span class="card-icon">🎧</span>
+              <h2>Local Events</h2>
+            </div>
+
+            <a routerLink="/events"> Browse → </a>
+          </div>
+
+          @if (eventsLoading()) {
+
+          <div class="card-empty">
+            <span>🎧</span>
+            <strong>Loading events...</strong>
+          </div>
+
+          } @else if (eventsError()) {
+
+          <div class="card-empty">
+            <span>⚠️</span>
+            <strong>Events bridge isn't running.</strong>
+            <span>Start the events-bridge server to see local shows.</span>
+          </div>
+
+          } @else if (upcomingEvents().length === 0) {
+
+          <div class="card-empty">
+            <span>🎫</span>
+            <strong>No events found.</strong>
+            <span>Check back soon, or browse Do214 directly.</span>
+          </div>
+
+          } @else {
+
+          <div class="dashboard-event-list">
+            @for (event of upcomingEvents(); track event.id) {
+
+            <a
+              class="dashboard-event"
+              [href]="event.url"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <div>
+                <strong>
+                  {{ event.name }}
+                </strong>
+
+                <span>
+                  {{ event.venue }}
+                </span>
+              </div>
+
+              @if (event.start) {
+              <span class="event-date">
+                {{ event.start | date : 'MMM d' }}
+              </span>
+              }
+            </a>
+
+            }
+          </div>
+
+          }
+        </section>
       </div>
     </section>
   `,
@@ -492,6 +560,13 @@ export class DashboardComponent implements OnInit {
 
     return items.slice(0, 5);
   });
+
+  private readonly eventsService = inject(EventsService);
+
+  readonly eventsLoading = this.eventsService.loading;
+  readonly eventsError = this.eventsService.error;
+
+  readonly upcomingEvents = () => this.eventsService.events().slice(0, 4);
 
   readonly incompleteTasks = () =>
     [...this.tasks()]
@@ -591,6 +666,7 @@ export class DashboardComponent implements OnInit {
   ngOnInit(): void {
     this.weatherService.loadWeather('Dallas, Texas');
     this.calendarService.loadEvents();
+    this.eventsService.loadEvents({ classificationName: 'Music' });
   }
 
   getWeatherIcon(code: number): string {

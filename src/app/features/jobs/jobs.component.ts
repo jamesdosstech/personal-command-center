@@ -1,7 +1,9 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Job, JobPriority, JobStatus } from '../../core/models/job.model';
+import { JobListing } from '../../core/models/job-listing.model';
 import { JobsService } from '../../core/services/jobs.service';
+import { JobSearchService } from '../../core/services/job-search.service';
 
 @Component({
   selector: 'app-jobs',
@@ -23,12 +25,114 @@ import { JobsService } from '../../core/services/jobs.service';
           + Add Job
         </button>
       </header>
+      <!-- Suggested Jobs -->
+      <section class="job-suggestions">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">DELIVERED TO YOU</p>
+            <h2>Suggested opportunities.</h2>
+          </div>
+        </div>
+
+        <form class="suggestions-search" (ngSubmit)="runSearch()">
+          <input
+            type="text"
+            name="what"
+            [(ngModel)]="searchWhat"
+            placeholder="Job title or keyword (e.g. frontend developer)"
+          />
+
+          <input
+            type="text"
+            name="where"
+            [(ngModel)]="searchWhere"
+            placeholder="Location"
+          />
+
+          <button type="submit" class="secondary-button">Search</button>
+        </form>
+
+        @if (listingsLoading()) {
+
+        <div class="suggestions-state">
+          <span>💼</span>
+          <p>Loading opportunities...</p>
+        </div>
+
+        } @else if (listingsError()) {
+
+        <div class="suggestions-state">
+          <span>⚠️</span>
+          <p>{{ listingsError() }}</p>
+          <p class="hint">
+            Run <code>npm start</code> inside <code>jobs-bridge/</code> with
+            your Adzuna credentials set in <code>.env</code>.
+          </p>
+        </div>
+
+        } @else if (listings().length === 0) {
+
+        <div class="suggestions-state">
+          <span>🔍</span>
+          <p>No matches yet. Try a broader search.</p>
+        </div>
+
+        } @else {
+
+        <div class="suggestions-grid">
+          @for (listing of listings(); track listing.id) {
+
+          <article class="suggestion-card">
+            <div>
+              <h3>{{ listing.title }}</h3>
+
+              <p class="suggestion-company">
+                {{ listing.company }}
+              </p>
+
+              <div class="suggestion-meta">
+                @if (listing.location) {
+                <span>📍 {{ listing.location }}</span>
+                } @if (listing.salaryMin) {
+                <span>💰 {{ formatSalary(listing) }}</span>
+                }
+              </div>
+            </div>
+
+            <div class="suggestion-actions">
+              @if (listing.url) {
+              <a
+                [href]="listing.url"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="secondary-button"
+              >
+                View ↗
+              </a>
+              }
+
+              <button
+                type="button"
+                class="primary-button"
+                (click)="addSuggestionToPipeline(listing)"
+              >
+                + Add
+              </button>
+            </div>
+          </article>
+
+          }
+        </div>
+
+        }
+      </section>
+
       <!-- Job Sources -->
       <section class="job-sources">
         <div class="section-heading">
           <div>
             <p class="eyebrow">JOB SOURCES</p>
-            <h2>Find your next opportunity.</h2>
+            <h2>Or browse directly.</h2>
           </div>
         </div>
 
@@ -408,10 +512,18 @@ import { JobsService } from '../../core/services/jobs.service';
   `,
   styleUrl: './jobs.component.scss',
 })
-export class JobsComponent {
+export class JobsComponent implements OnInit {
   private readonly jobsService = inject(JobsService);
+  private readonly jobSearchService = inject(JobSearchService);
 
   readonly jobs = this.jobsService.jobs;
+
+  readonly listings = this.jobSearchService.listings;
+  readonly listingsLoading = this.jobSearchService.loading;
+  readonly listingsError = this.jobSearchService.error;
+
+  searchWhat = '';
+  searchWhere = 'Dallas';
 
   readonly activeFilter = signal<JobStatus | 'all'>('all');
 
@@ -437,6 +549,54 @@ export class JobsComponent {
     priority: 'medium',
     notes: '',
   };
+
+  ngOnInit(): void {
+    this.runSearch();
+  }
+
+  runSearch(): void {
+    this.jobSearchService.search({
+      what: this.searchWhat,
+      where: this.searchWhere,
+    });
+  }
+
+  addSuggestionToPipeline(listing: JobListing): void {
+    this.jobsService.addJob(
+      listing.title,
+      listing.company ?? 'Unknown',
+      'medium'
+    );
+
+    const createdJob = this.jobs().at(-1);
+
+    if (createdJob) {
+      this.jobsService.updateJob(createdJob.id, {
+        location: listing.location,
+        url: listing.url,
+        salary: listing.salaryMin ? this.formatSalary(listing) : undefined,
+        source: 'Adzuna',
+      });
+    }
+  }
+
+  formatSalary(listing: JobListing): string {
+    const min = listing.salaryMin
+      ? Math.round(listing.salaryMin).toLocaleString()
+      : null;
+
+    const max = listing.salaryMax
+      ? Math.round(listing.salaryMax).toLocaleString()
+      : null;
+
+    const predicted = listing.salaryIsPredicted ? ' (est.)' : '';
+
+    if (min && max && min !== max) {
+      return `$${min} - $${max}${predicted}`;
+    }
+
+    return `$${min ?? max}${predicted}`;
+  }
 
   filteredJobs(): Job[] {
     const filter = this.activeFilter();

@@ -688,3 +688,48 @@ h1 {
 .dashboard-task.due-today .task-dot {
   background: var(--warning);
 }
+
+.dashboard-event-list {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.dashboard-event {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border);
+  text-decoration: none;
+  color: inherit;
+}
+
+.dashboard-event > div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.dashboard-event strong {
+  overflow: hidden;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-event > div span {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.dashboard-event .event-date {
+  flex-shrink: 0;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
