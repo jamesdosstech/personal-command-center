@@ -623,6 +623,133 @@ h1 {
   margin-top: 1rem;
 }
 
+/* Calendar */
+
+.calendar-event-list {
+  display: grid;
+  gap: 0;
+  margin-top: 1.25rem;
+}
+
+.calendar-event {
+  position: relative;
+
+  display: grid;
+  grid-template-columns: 65px 1fr;
+
+  gap: 0.75rem;
+
+  min-height: 58px;
+
+  padding: 0.85rem 0;
+
+  border-bottom: 1px solid var(--border);
+}
+
+.calendar-event:last-child {
+  border-bottom: 0;
+}
+
+/* Time */
+
+.calendar-event-time {
+  padding-top: 0.1rem;
+
+  font-size: 0.7rem;
+  font-weight: 600;
+
+  color: var(--text-muted);
+
+  text-align: right;
+}
+
+/* Event content */
+
+.calendar-event-details {
+  position: relative;
+
+  display: grid;
+
+  gap: 0.2rem;
+
+  min-width: 0;
+
+  padding-left: 1rem;
+}
+
+/* Timeline indicator */
+
+.calendar-event-details::before {
+  content: "";
+
+  position: absolute;
+
+  top: 0.25rem;
+  left: 0;
+
+  width: 6px;
+  height: 6px;
+
+  border-radius: 50%;
+
+  background: var(--text-primary);
+}
+
+/* Vertical timeline */
+
+.calendar-event:not(:last-child) .calendar-event-details::after {
+  content: "";
+
+  position: absolute;
+
+  top: 0.75rem;
+  bottom: -1.25rem;
+  left: 2.5px;
+
+  width: 1px;
+
+  background: var(--border);
+}
+
+/* Event title */
+
+.calendar-event-details strong {
+  overflow: hidden;
+
+  font-size: 0.85rem;
+  font-weight: 600;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Location */
+
+.calendar-event-details > span {
+  overflow: hidden;
+
+  font-size: 0.7rem;
+
+  color: var(--text-secondary);
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Calendar name */
+
+.calendar-event-details small {
+  font-size: 0.65rem;
+
+  color: var(--text-muted);
+}
+
+/* Calendar card */
+
+.calendar-card {
+  overflow: hidden;
+}
+
 .dashboard-event {
   display: grid;
 

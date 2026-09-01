@@ -1,15 +1,27 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { Task } from '../models/task.model';
+import { DataStoreService } from './data-store.service';
+
+const STORAGE_KEY = 'tasks';
 
 @Injectable({
   providedIn: 'root',
 })
 export class TasksService {
-  private readonly storageKey = 'personal-command-center-tasks';
+  private readonly dataStore = inject(DataStoreService);
 
-  private readonly tasksState = signal<Task[]>(this.loadTasks());
+  private readonly tasksState = signal<Task[]>([]);
 
   readonly tasks = this.tasksState.asReadonly();
+
+  readonly loading = signal(true);
+
+  constructor() {
+    this.dataStore.get<Task[]>(STORAGE_KEY).subscribe((value) => {
+      this.tasksState.set(value ?? []);
+      this.loading.set(false);
+    });
+  }
 
   addTask(
     title: string,
@@ -52,21 +64,7 @@ export class TasksService {
     this.saveTasks(updated);
   }
 
-  private loadTasks(): Task[] {
-    const stored = localStorage.getItem(this.storageKey);
-
-    if (!stored) {
-      return [];
-    }
-
-    try {
-      return JSON.parse(stored) as Task[];
-    } catch {
-      return [];
-    }
-  }
-
   private saveTasks(tasks: Task[]): void {
-    localStorage.setItem(this.storageKey, JSON.stringify(tasks));
+    this.dataStore.set(STORAGE_KEY, tasks).subscribe();
   }
 }

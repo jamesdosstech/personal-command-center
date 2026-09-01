@@ -16,6 +16,9 @@ yarn-error.log
 .env.local
 */.env
 
+# Personal data (data-bridge's JSON store)
+data-bridge/data/
+
 # IDEs and editors
 .idea/
 .project

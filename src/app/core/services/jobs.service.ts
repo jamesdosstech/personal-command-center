@@ -1,15 +1,27 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { Job, JobPriority, JobStatus } from '../models/job.model';
+import { DataStoreService } from './data-store.service';
+
+const STORAGE_KEY = 'jobs';
 
 @Injectable({
   providedIn: 'root',
 })
 export class JobsService {
-  private readonly storageKey = 'personal-command-center-jobs';
+  private readonly dataStore = inject(DataStoreService);
 
-  private readonly jobsState = signal<Job[]>(this.loadJobs());
+  private readonly jobsState = signal<Job[]>([]);
 
   readonly jobs = this.jobsState.asReadonly();
+
+  readonly loading = signal(true);
+
+  constructor() {
+    this.dataStore.get<Job[]>(STORAGE_KEY).subscribe((value) => {
+      this.jobsState.set(value ?? []);
+      this.loading.set(false);
+    });
+  }
 
   addJob(
     title: string,
@@ -91,21 +103,7 @@ export class JobsService {
     return this.jobsState().filter((job) => job.status === status);
   }
 
-  private loadJobs(): Job[] {
-    const stored = localStorage.getItem(this.storageKey);
-
-    if (!stored) {
-      return [];
-    }
-
-    try {
-      return JSON.parse(stored) as Job[];
-    } catch {
-      return [];
-    }
-  }
-
   private saveJobs(jobs: Job[]): void {
-    localStorage.setItem(this.storageKey, JSON.stringify(jobs));
+    this.dataStore.set(STORAGE_KEY, jobs).subscribe();
   }
 }

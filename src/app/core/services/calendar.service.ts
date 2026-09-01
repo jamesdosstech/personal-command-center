@@ -1,5 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
 
 export interface CalendarEvent {
   id: string;
@@ -7,12 +8,37 @@ export interface CalendarEvent {
   start: string;
   end: string;
   location?: string;
+  notes?: string;
   calendar?: string;
+}
+
+export interface CalendarRecurrence {
+  frequency: 'daily' | 'weekly' | 'monthly';
+  interval: number;
+}
+
+export interface CreateCalendarEvent {
+  calendar: string;
+  title: string;
+  start: string;
+  end: string;
+  location?: string;
+  notes?: string;
+  recurrence?: CalendarRecurrence;
 }
 
 interface CalendarResponse {
   events: CalendarEvent[];
   cached: boolean;
+}
+
+interface CreateCalendarResponse {
+  event: CalendarEvent;
+}
+
+interface DeleteCalendarResponse {
+  success: boolean;
+  id: string;
 }
 
 @Injectable({
@@ -24,9 +50,7 @@ export class CalendarService {
   private readonly apiUrl = 'http://localhost:3333/api/calendar';
 
   readonly events = signal<CalendarEvent[]>([]);
-
   readonly loading = signal(false);
-
   readonly error = signal('');
 
   loadEvents(): void {
@@ -38,14 +62,24 @@ export class CalendarService {
         this.events.set(response.events);
         this.loading.set(false);
       },
-
       error: (error) => {
         console.error('CalendarService error:', error);
-
         this.error.set('Unable to load your calendar.');
-
         this.loading.set(false);
       },
     });
+  }
+
+  createEvent(event: CreateCalendarEvent): Observable<CreateCalendarResponse> {
+    return this.http.post<CreateCalendarResponse>(
+      `${this.apiUrl}/events`,
+      event
+    );
+  }
+
+  deleteEvent(id: string): Observable<DeleteCalendarResponse> {
+    return this.http.delete<DeleteCalendarResponse>(
+      `${this.apiUrl}/events/${encodeURIComponent(id)}`
+    );
   }
 }

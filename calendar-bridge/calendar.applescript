@@ -15,25 +15,32 @@ tell application "Calendar"
 
             set currentCalendar to calendar (calendarName as string)
 
-            set todaysEvents to (every event of currentCalendar whose start date is greater than or equal to todayDate and start date is less than tomorrowDate)
+            -- Bulk-fetch all event properties in ONE round trip each, instead of
+            -- using "whose" (which checks every event individually and can take
+            -- minutes on calendars with a lot of history) or looping with
+            -- individual property gets (same problem).
+            set eventSummaries to summary of every event of currentCalendar
+            set eventStarts to start date of every event of currentCalendar
+            set eventEnds to end date of every event of currentCalendar
+            set eventLocations to location of every event of currentCalendar
 
-            repeat with currentEvent in todaysEvents
+            set eventCount to count of eventSummaries
 
-                try
+            repeat with i from 1 to eventCount
 
-                    set eventTitle to summary of currentEvent
-                    set eventStart to start date of currentEvent
-                    set eventEnd to end date of currentEvent
+                set eventStart to item i of eventStarts
 
-                    set eventLocation to ""
+                if eventStart is greater than or equal to todayDate and eventStart is less than tomorrowDate then
 
-                    try
-                        set eventLocation to location of currentEvent
-                    end try
+                    set eventTitle to item i of eventSummaries
+                    set eventEnd to item i of eventEnds
+
+                    set eventLocation to item i of eventLocations
+                    if eventLocation is missing value then set eventLocation to ""
 
                     set output to output & (calendarName as string) & "|" & eventTitle & "|" & (eventStart as string) & "|" & (eventEnd as string) & "|" & eventLocation & linefeed
 
-                end try
+                end if
 
             end repeat
 

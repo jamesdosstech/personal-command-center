@@ -7,7 +7,8 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "dev": "concurrently -n calendar,events,jobs,angular -c blue,magenta,red,green \"npm start --prefix jobs-bridge\" \"npm start --prefix calendar-bridge\" \"npm start --prefix events-bridge\" \"ng serve\""
+    "dev": "concurrently -n data,calendar,events,jobs,angular -c yellow,blue,magenta,cyan,green \"npm start --prefix data-bridge\" \"npm start --prefix calendar-bridge\" \"npm start --prefix events-bridge\" \"npm start --prefix jobs-bridge\" \"ng serve\"",
+    "bad-dev": "concurrently -n data,events,jobs,angular -c yellow,magenta,cyan,green \"npm start --prefix data-bridge\" \"npm start --prefix events-bridge\" \"npm start --prefix jobs-bridge\" \"ng serve\""
   },
   "private": true,
   "dependencies": {
