@@ -408,7 +408,6 @@ end tell
 `;
 
     console.log("[calendar] Creating Apple Calendar event...");
-
     console.log("[calendar] Recurrence rule:", recurrenceRule || "none");
 
     execFile(
@@ -420,7 +419,6 @@ end tell
       (error, stdout, stderr) => {
         if (error) {
           console.error("[calendar] AppleScript create error:", error);
-
           console.error("[calendar] stderr:", JSON.stringify(stderr));
 
           reject(new Error(stderr || error.message));
@@ -430,7 +428,6 @@ end tell
         const uid = stdout.trim();
 
         console.log("[calendar] Event created successfully.");
-
         console.log("[calendar] Event UID:", uid);
 
         resolve(uid);
@@ -489,6 +486,7 @@ function updateCalendarEvent({
 tell application "Calendar"
 
     set targetEvent to missing value
+    set targetCalendarName to ""
 
     set calendarList to every calendar
 
@@ -500,6 +498,7 @@ tell application "Calendar"
 
             if (count of matchingEvents) > 0 then
                 set targetEvent to item 1 of matchingEvents
+                set targetCalendarName to name of currentCalendar
                 exit repeat
             end if
 
@@ -516,7 +515,10 @@ ${dateCommands}
 ${
   calendar !== undefined
     ? `    set targetCalendar to calendar "${safeCalendar}"
-    set calendar of targetEvent to targetCalendar
+
+    if targetCalendarName is not "${safeCalendar}" then
+        set calendar of targetEvent to targetCalendar
+    end if
 `
     : ""
 }
@@ -530,13 +532,13 @@ ${
 
 ${
   start !== undefined
-    ? `    set start date of targetEvent to startDate
+    ? `    set properties of targetEvent to {start date:startDate, end date:endDate}
 `
     : ""
 }
 
 ${
-  end !== undefined
+  end !== undefined && start === undefined
     ? `    set end date of targetEvent to endDate
 `
     : ""
@@ -572,7 +574,6 @@ end tell
       (error, stdout, stderr) => {
         if (error) {
           console.error("[calendar] AppleScript update error:", error);
-
           console.error("[calendar] stderr:", JSON.stringify(stderr));
 
           reject(new Error(stderr || error.message));
@@ -589,66 +590,177 @@ end tell
   });
 }
 
-function deleteCalendarEvent(id) {
+function deleteCalendarEventOccurrence(id, occurrenceStart) {
   return new Promise((resolve, reject) => {
-    const safeId = escapeAppleScriptString(id);
+    const parsedOccurrenceStart = new Date(occurrenceStart);
 
-    const script = `
-tell application "Calendar"
+    if (Number.isNaN(parsedOccurrenceStart.getTime())) {
+      reject(new Error("occurrenceStart must be a valid date."));
+      return;
+    }
 
-    set targetEvent to missing value
+    const eventKitBinary = `${__dirname}/CalendarEventKit`;
 
-    set calendarList to every calendar
-
-    repeat with currentCalendar in calendarList
-
-        try
-
-            set matchingEvents to (every event of currentCalendar whose uid is "${safeId}")
-
-            if (count of matchingEvents) > 0 then
-                set targetEvent to item 1 of matchingEvents
-                exit repeat
-            end if
-
-        end try
-
-    end repeat
-
-    if targetEvent is missing value then
-        error "Calendar event not found: ${safeId}"
-    end if
-
-    delete targetEvent
-
-end tell
-`;
-
-    console.log("[calendar] Deleting Apple Calendar event:", id);
+    console.log(
+      "[calendar] Deleting Calendar occurrence with EventKit:",
+      id,
+      occurrenceStart
+    );
 
     execFile(
-      "osascript",
-      ["-e", script],
+      eventKitBinary,
+      ["delete-occurrence", id, occurrenceStart],
       {
         timeout: 15000,
       },
       (error, stdout, stderr) => {
+        console.log("[calendar] EventKit stdout:", JSON.stringify(stdout));
+
+        console.log("[calendar] EventKit stderr:", JSON.stringify(stderr));
+
         if (error) {
-          console.error("[calendar] AppleScript delete error:", error);
+          console.error("[calendar] EventKit occurrence delete error:", error);
 
-          console.error("[calendar] stderr:", JSON.stringify(stderr));
+          reject(new Error(stderr?.trim() || stdout?.trim() || error.message));
 
-          reject(new Error(stderr || error.message));
           return;
         }
 
-        console.log("[calendar] Event deleted successfully.");
+        console.log("[calendar] Calendar occurrence deleted successfully.");
 
-        resolve();
+        resolve(id);
       }
     );
   });
 }
+
+// function deleteCalendarEventOccurrence(id, occurrenceStart) {
+//   return new Promise((resolve, reject) => {
+//     const safeId = escapeAppleScriptString(id);
+//     const parsedOccurrenceStart = new Date(occurrenceStart);
+
+//     if (Number.isNaN(parsedOccurrenceStart.getTime())) {
+//       reject(new Error("occurrenceStart must be a valid date."));
+//       return;
+//     }
+
+//     const occurrenceDateCommands = buildAppleScriptDateCommands(
+//       "occurrenceDate",
+//       parsedOccurrenceStart
+//     );
+
+//     const script = `
+// tell application "Calendar"
+
+//     set targetEvent to missing value
+
+//     set calendarList to every calendar
+
+//     repeat with currentCalendar in calendarList
+
+//         try
+
+//             set matchingEvents to (every event of currentCalendar whose uid is "${safeId}")
+
+//             if (count of matchingEvents) > 0 then
+//                 set targetEvent to item 1 of matchingEvents
+//                 exit repeat
+//             end if
+
+//         end try
+
+//     end repeat
+
+//     if targetEvent is missing value then
+//         error "Calendar event not found: ${safeId}"
+//     end if
+
+// ${occurrenceDateCommands}
+
+//     set existingExcludedDates to excluded dates of targetEvent
+
+//     set newExcludedDates to existingExcludedDates & {occurrenceDate}
+
+//     set excluded dates of targetEvent to newExcludedDates
+
+//     delay 1
+
+//     set verificationEvent to missing value
+
+//     set verificationCalendarList to every calendar
+
+//     repeat with verificationCalendar in verificationCalendarList
+
+//         try
+
+//             set verificationEvents to (every event of verificationCalendar whose uid is "${safeId}")
+
+//             if (count of verificationEvents) > 0 then
+//                 set verificationEvent to item 1 of verificationEvents
+//                 exit repeat
+//             end if
+
+//         end try
+
+//     end repeat
+
+//     if verificationEvent is missing value then
+//         error "Calendar event disappeared while verifying occurrence deletion."
+//     end if
+
+//     set savedExcludedDates to excluded dates of verificationEvent
+
+//     set occurrenceWasExcluded to false
+
+//     repeat with savedDate in savedExcludedDates
+//         if (savedDate as date) is occurrenceDate then
+//             set occurrenceWasExcluded to true
+//             exit repeat
+//         end if
+//     end repeat
+
+//     if occurrenceWasExcluded is false then
+//         error "Apple Calendar did not persist the requested excluded occurrence."
+//     end if
+
+//     return uid of verificationEvent
+
+// end tell
+// `;
+
+//     console.log(
+//       "[calendar] Deleting Apple Calendar occurrence:",
+//       id,
+//       occurrenceStart
+//     );
+
+//     execFile(
+//       "osascript",
+//       ["-e", script],
+//       {
+//         timeout: 15000,
+//       },
+//       (error, stdout, stderr) => {
+//         if (error) {
+//           console.error(
+//             "[calendar] AppleScript occurrence delete error:",
+//             error
+//           );
+//           console.error("[calendar] stderr:", JSON.stringify(stderr));
+
+//           reject(new Error(stderr || error.message));
+//           return;
+//         }
+
+//         const uid = stdout.trim();
+
+//         console.log("[calendar] Calendar occurrence deletion verified:", uid);
+
+//         resolve(uid);
+//       }
+//     );
+//   });
+// }
 
 function clearCalendarCache() {
   calendarCache = {
@@ -865,10 +977,39 @@ app.put("/api/calendar/events/:id", async (req, res) => {
 app.delete("/api/calendar/events/:id", async (req, res) => {
   try {
     const { id } = req.params;
+    const { mode = "series", occurrenceStart } = req.body || {};
 
     if (!id) {
       return res.status(400).json({
         error: "Event ID is required.",
+      });
+    }
+
+    if (!["series", "occurrence"].includes(mode)) {
+      return res.status(400).json({
+        error: 'mode must be either "series" or "occurrence".',
+      });
+    }
+
+    if (mode === "occurrence" && !occurrenceStart) {
+      return res.status(400).json({
+        error: "occurrenceStart is required when mode is occurrence.",
+      });
+    }
+
+    if (mode === "occurrence") {
+      const deletedId = await deleteCalendarEventOccurrence(
+        id,
+        occurrenceStart
+      );
+
+      clearCalendarCache();
+
+      return res.json({
+        success: true,
+        id: deletedId,
+        mode: "occurrence",
+        occurrenceStart,
       });
     }
 
@@ -879,6 +1020,7 @@ app.delete("/api/calendar/events/:id", async (req, res) => {
     res.json({
       success: true,
       id,
+      mode: "series",
     });
   } catch (error) {
     console.error("[calendar] Calendar delete route error:", error);

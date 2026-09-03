@@ -27,12 +27,25 @@ export interface CreateCalendarEvent {
   recurrence?: CalendarRecurrence;
 }
 
+export interface UpdateCalendarEvent {
+  calendar?: string;
+  title?: string;
+  start?: string;
+  end?: string;
+  location?: string;
+  notes?: string;
+}
+
 interface CalendarResponse {
   events: CalendarEvent[];
   cached: boolean;
 }
 
 interface CreateCalendarResponse {
+  event: CalendarEvent;
+}
+
+interface UpdateCalendarResponse {
   event: CalendarEvent;
 }
 
@@ -73,6 +86,16 @@ export class CalendarService {
   createEvent(event: CreateCalendarEvent): Observable<CreateCalendarResponse> {
     return this.http.post<CreateCalendarResponse>(
       `${this.apiUrl}/events`,
+      event
+    );
+  }
+
+  updateEvent(
+    id: string,
+    event: UpdateCalendarEvent
+  ): Observable<UpdateCalendarResponse> {
+    return this.http.put<UpdateCalendarResponse>(
+      `${this.apiUrl}/events/${encodeURIComponent(id)}`,
       event
     );
   }

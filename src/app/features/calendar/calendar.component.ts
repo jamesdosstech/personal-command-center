@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import {
   CalendarService,
   CreateCalendarEvent,
+  UpdateCalendarEvent,
 } from '../../core/services/calendar.service';
 
 @Component({
@@ -26,9 +27,9 @@ import {
 
       @if (showCreateForm()) {
       <section class="create-event-panel">
-        <h2>Create Event</h2>
+        <h2>{{ editingEventId() ? 'Edit Event' : 'Create Event' }}</h2>
 
-        <form (ngSubmit)="createEvent()">
+        <form (ngSubmit)="submitEvent()">
           <div>
             <label for="title">Title</label>
             <input
@@ -89,6 +90,7 @@ import {
             />
           </div>
 
+          @if (!editingEventId()) {
           <div>
             <label for="repeat">Repeat</label>
             <select id="repeat" name="repeat" [(ngModel)]="form.repeat">
@@ -109,15 +111,12 @@ import {
               [(ngModel)]="form.repeatInterval"
             >
               <option [ngValue]="1">1 {{ getRepeatUnit() }}</option>
-
               <option [ngValue]="2">2 {{ getRepeatUnit(true) }}</option>
-
               <option [ngValue]="3">3 {{ getRepeatUnit(true) }}</option>
-
               <option [ngValue]="4">4 {{ getRepeatUnit(true) }}</option>
             </select>
           </div>
-          }
+          } }
 
           <div>
             <label for="location">Location</label>
@@ -141,13 +140,32 @@ import {
             ></textarea>
           </div>
 
-          @if (createError()) {
-          <p>{{ createError() }}</p>
+          @if (formError()) {
+          <p>{{ formError() }}</p>
           }
 
-          <button type="submit" [disabled]="creating()">
-            {{ creating() ? 'Creating...' : 'Create Event' }}
-          </button>
+          <div class="form-actions">
+            <button type="submit" [disabled]="saving()">
+              {{
+                saving()
+                  ? 'Saving...'
+                  : editingEventId()
+                  ? 'Save Changes'
+                  : 'Create Event'
+              }}
+            </button>
+
+            @if (editingEventId()) {
+            <button
+              type="button"
+              class="secondary-button"
+              (click)="cancelEdit()"
+              [disabled]="saving()"
+            >
+              Cancel
+            </button>
+            }
+          </div>
         </form>
       </section>
       } @if (deleting()) {
@@ -204,8 +222,18 @@ import {
 
             <button
               type="button"
+              class="edit-button"
+              [disabled]="deleting() || saving()"
+              (click)="editEvent(event)"
+              [attr.aria-label]="'Edit ' + event.title"
+            >
+              ✏️
+            </button>
+
+            <button
+              type="button"
               class="delete-button"
-              [disabled]="deleting()"
+              [disabled]="deleting() || saving()"
               (click)="deleteEvent(event.id, event.title)"
               [attr.aria-label]="'Delete ' + event.title"
             >
@@ -228,8 +256,10 @@ export class CalendarComponent implements OnInit {
   readonly error = this.calendarService.error;
 
   readonly showCreateForm = signal(false);
-  readonly creating = signal(false);
-  readonly createError = signal('');
+  readonly saving = signal(false);
+  readonly formError = signal('');
+
+  readonly editingEventId = signal<string | null>(null);
 
   readonly deleting = signal(false);
   readonly deleteError = signal('');
@@ -251,20 +281,66 @@ export class CalendarComponent implements OnInit {
   }
 
   toggleCreateForm(): void {
-    this.showCreateForm.update((visible) => !visible);
-    this.createError.set('');
+    if (this.showCreateForm()) {
+      this.cancelEdit();
+      return;
+    }
+
+    this.resetForm();
+    this.formError.set('');
+    this.editingEventId.set(null);
+    this.showCreateForm.set(true);
+  }
+
+  editEvent(event: {
+    id: string;
+    title: string;
+    start: string;
+    end: string;
+    calendar?: string;
+    location?: string;
+    notes?: string;
+  }): void {
+    const startDate = new Date(event.start);
+    const endDate = new Date(event.end);
+
+    this.form.title = event.title;
+    this.form.calendar = event.calendar || 'Work';
+    this.form.date = this.formatDateForInput(startDate);
+    this.form.startTime = this.formatTimeForInput(startDate);
+    this.form.endTime = this.formatTimeForInput(endDate);
+    this.form.repeat = 'none';
+    this.form.repeatInterval = 1;
+    this.form.location = event.location || '';
+    this.form.notes = event.notes || '';
+
+    this.formError.set('');
+    this.deleteError.set('');
+    this.editingEventId.set(event.id);
+    this.showCreateForm.set(true);
+  }
+
+  submitEvent(): void {
+    this.formError.set('');
+
+    if (this.editingEventId()) {
+      this.updateEvent();
+      return;
+    }
+
+    this.createEvent();
   }
 
   createEvent(): void {
-    this.createError.set('');
+    this.formError.set('');
 
     if (!this.form.title.trim()) {
-      this.createError.set('Please enter an event title.');
+      this.formError.set('Please enter an event title.');
       return;
     }
 
     if (!this.form.date || !this.form.startTime || !this.form.endTime) {
-      this.createError.set('Please enter a date, start time, and end time.');
+      this.formError.set('Please enter a date, start time, and end time.');
       return;
     }
 
@@ -272,7 +348,7 @@ export class CalendarComponent implements OnInit {
     const end = `${this.form.date}T${this.form.endTime}:00`;
 
     if (new Date(end).getTime() <= new Date(start).getTime()) {
-      this.createError.set('End time must be after start time.');
+      this.formError.set('End time must be after start time.');
       return;
     }
 
@@ -292,11 +368,11 @@ export class CalendarComponent implements OnInit {
       };
     }
 
-    this.creating.set(true);
+    this.saving.set(true);
 
     this.calendarService.createEvent(event).subscribe({
       next: () => {
-        this.creating.set(false);
+        this.saving.set(false);
         this.showCreateForm.set(false);
         this.resetForm();
 
@@ -305,10 +381,71 @@ export class CalendarComponent implements OnInit {
       error: (error) => {
         console.error('CalendarComponent create event error:', error);
 
-        this.creating.set(false);
-        this.createError.set('Unable to create the event. Please try again.');
+        this.saving.set(false);
+        this.formError.set('Unable to create the event. Please try again.');
       },
     });
+  }
+
+  updateEvent(): void {
+    const id = this.editingEventId();
+
+    if (!id) {
+      return;
+    }
+
+    if (!this.form.title.trim()) {
+      this.formError.set('Please enter an event title.');
+      return;
+    }
+
+    if (!this.form.date || !this.form.startTime || !this.form.endTime) {
+      this.formError.set('Please enter a date, start time, and end time.');
+      return;
+    }
+
+    const start = `${this.form.date}T${this.form.startTime}:00`;
+    const end = `${this.form.date}T${this.form.endTime}:00`;
+
+    if (new Date(end).getTime() <= new Date(start).getTime()) {
+      this.formError.set('End time must be after start time.');
+      return;
+    }
+
+    const event: UpdateCalendarEvent = {
+      calendar: this.form.calendar,
+      title: this.form.title.trim(),
+      start,
+      end,
+      location: this.form.location.trim(),
+      notes: this.form.notes.trim(),
+    };
+
+    this.saving.set(true);
+
+    this.calendarService.updateEvent(id, event).subscribe({
+      next: () => {
+        this.saving.set(false);
+        this.showCreateForm.set(false);
+        this.editingEventId.set(null);
+        this.resetForm();
+
+        this.calendarService.loadEvents();
+      },
+      error: (error) => {
+        console.error('CalendarComponent update event error:', error);
+
+        this.saving.set(false);
+        this.formError.set('Unable to update the event. Please try again.');
+      },
+    });
+  }
+
+  cancelEdit(): void {
+    this.showCreateForm.set(false);
+    this.editingEventId.set(null);
+    this.formError.set('');
+    this.resetForm();
   }
 
   deleteEvent(id: string, title: string): void {
@@ -372,6 +509,21 @@ export class CalendarComponent implements OnInit {
     }
 
     return `${hours} hr ${remainingMinutes} min`;
+  }
+
+  private formatDateForInput(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+  }
+
+  private formatTimeForInput(date: Date): string {
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+
+    return `${hours}:${minutes}`;
   }
 
   private getTodayDate(): string {

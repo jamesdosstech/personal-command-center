@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TasksService } from '../../core/services/tasks.service';
 import { FavoritesService } from '../../core/services/favorites.service';
@@ -118,7 +118,6 @@ interface FocusItem {
       <!-- Main Grid -->
       <div class="dashboard-grid">
         <!-- Focus Card -->
-        <!-- Today's Focus -->
         <section class="dashboard-card focus-card">
           <div class="card-header">
             <div>
@@ -165,6 +164,7 @@ interface FocusItem {
 
           }
         </section>
+
         <!-- Tasks -->
         <section class="dashboard-card tasks-card">
           <div class="card-header">
@@ -189,7 +189,7 @@ interface FocusItem {
           } @else {
 
           <div class="dashboard-task-list">
-            @for ( task of incompleteTasks().slice(0, 5); track task.id ) {
+            @for (task of incompleteTasks().slice(0, 5); track task.id) {
 
             <div
               class="dashboard-task"
@@ -250,7 +250,7 @@ interface FocusItem {
             <strong>{{ calendarError() }}</strong>
           </div>
 
-          } @else if (calendarEvents().length === 0) {
+          } @else if (todayCalendarEvents().length === 0) {
 
           <div class="card-empty">
             <span>🎉</span>
@@ -261,7 +261,7 @@ interface FocusItem {
           } @else {
 
           <div class="calendar-event-list">
-            @for (event of calendarEvents(); track event.id) {
+            @for (event of todayCalendarEvents(); track event.id) {
 
             <div class="calendar-event">
               <div class="calendar-event-time">
@@ -315,7 +315,7 @@ interface FocusItem {
           } @else {
 
           <div class="dashboard-favorites">
-            @for ( favorite of favorites().slice(0, 6); track favorite.id ) {
+            @for (favorite of favorites().slice(0, 6); track favorite.id) {
 
             <a
               class="dashboard-favorite"
@@ -388,7 +388,7 @@ interface FocusItem {
           } @else {
 
           <div class="dashboard-job-list">
-            @for ( job of jobs().slice(0, 3); track job.id ) {
+            @for (job of jobs().slice(0, 3); track job.id) {
 
             <div class="dashboard-job">
               <div>
@@ -411,6 +411,7 @@ interface FocusItem {
 
           }
         </section>
+
         <!-- Local Events -->
         <section class="dashboard-card events-card">
           <div class="card-header">
@@ -489,6 +490,7 @@ export class DashboardComponent implements OnInit {
   private readonly weatherService = inject(WeatherService);
   private readonly jobsService = inject(JobsService);
   private readonly calendarService = inject(CalendarService);
+  private readonly eventsService = inject(EventsService);
 
   readonly tasks = this.tasksService.tasks;
   readonly favorites = this.favoritesService.favorites;
@@ -500,6 +502,20 @@ export class DashboardComponent implements OnInit {
   readonly calendarEvents = this.calendarService.events;
   readonly calendarLoading = this.calendarService.loading;
   readonly calendarError = this.calendarService.error;
+
+  /**
+   * CalendarService returns a 7-day window.
+   * The dashboard only wants events whose local date is today.
+   */
+  readonly todayCalendarEvents = computed(() => {
+    const today = this.toDateString(new Date());
+
+    return [...this.calendarEvents()]
+      .filter((event) => this.toDateString(new Date(event.start)) === today)
+      .sort(
+        (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()
+      );
+  });
 
   readonly focusItems = computed<FocusItem[]>(() => {
     const items: FocusItem[] = [];
@@ -527,10 +543,8 @@ export class DashboardComponent implements OnInit {
       });
     });
 
-    // Upcoming calendar events
-    const events = [...this.calendarEvents()]
-      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
-      .slice(0, 2);
+    // Today's calendar events only
+    const events = this.todayCalendarEvents().slice(0, 2);
 
     events.forEach((event) => {
       items.push({
@@ -560,8 +574,6 @@ export class DashboardComponent implements OnInit {
 
     return items.slice(0, 5);
   });
-
-  private readonly eventsService = inject(EventsService);
 
   readonly eventsLoading = this.eventsService.loading;
   readonly eventsError = this.eventsService.error;
@@ -639,9 +651,7 @@ export class DashboardComponent implements OnInit {
 
   private toDateString(date: Date): string {
     const year = date.getFullYear();
-
     const month = String(date.getMonth() + 1).padStart(2, '0');
-
     const day = String(date.getDate()).padStart(2, '0');
 
     return `${year}-${month}-${day}`;
