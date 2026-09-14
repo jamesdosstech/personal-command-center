@@ -1,10 +1,18 @@
 import { Routes } from '@angular/router';
+
 import { AppShellComponent } from './core/layout/app-shell.component';
+import { authGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
   {
+    path: 'login',
+    loadComponent: () =>
+      import('./features/auth/login.component').then((m) => m.LoginComponent),
+  },
+  {
     path: '',
     component: AppShellComponent,
+    canActivate: [authGuard],
     children: [
       {
         path: '',
@@ -37,7 +45,6 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/jobs/jobs.component').then((m) => m.JobsComponent),
       },
-
       {
         path: 'calendar',
         loadComponent: () =>
@@ -52,7 +59,6 @@ export const routes: Routes = [
             (m) => m.EventsComponent
           ),
       },
-
       {
         path: 'notes',
         loadComponent: () =>
@@ -60,7 +66,6 @@ export const routes: Routes = [
             (m) => m.NotesComponent
           ),
       },
-
       {
         path: 'settings',
         loadComponent: () =>
