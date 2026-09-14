@@ -56,8 +56,8 @@ export const routes: Routes = [
       {
         path: 'notes',
         loadComponent: () =>
-          import('./shared/components/coming-soon/coming-soon.component').then(
-            (m) => m.ComingSoonComponent
+          import('./features/notes/notes.component').then(
+            (m) => m.NotesComponent
           ),
       },
 

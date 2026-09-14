@@ -1,0 +1,174 @@
+<div class="notes-page">
+  <header class="notes-header">
+    <div>
+      <h1>Notes</h1>
+      <p>Capture ideas, reminders, and anything you don't want to forget.</p>
+    </div>
+
+    <button type="button" class="new-note-button" (click)="createNote()">
+      + New Note
+    </button>
+  </header>
+
+  <div class="notes-layout">
+    <!-- Notes List -->
+    <aside class="notes-sidebar">
+      <div class="search-container">
+        <input
+          type="search"
+          placeholder="Search notes..."
+          [ngModel]="searchTerm()"
+          (ngModelChange)="searchTerm.set($event)"
+        />
+      </div>
+
+      @if (loading()) {
+      <div class="empty-state">Loading notes...</div>
+      } @else if (filteredNotes().length === 0) {
+      <div class="empty-state">
+        <p>No notes found.</p>
+
+        @if (!searchTerm()) {
+        <button type="button" class="secondary-button" (click)="createNote()">
+          Create your first note
+        </button>
+        }
+      </div>
+      } @else {
+
+      <div class="notes-list">
+        @for (note of filteredNotes(); track note.id) {
+        <button
+          type="button"
+          class="note-list-item"
+          [class.active]="selectedNoteId() === note.id"
+          (click)="selectNote(note)"
+        >
+          <div class="note-list-header">
+            <span class="note-list-title">
+              {{ note.title || "Untitled Note" }}
+            </span>
+
+            @if (note.pinned) {
+            <span class="pin-indicator" aria-label="Pinned"> 📌 </span>
+            }
+          </div>
+
+          <p class="note-preview">
+            {{ note.content || "No content yet..." }}
+          </p>
+
+          <div class="note-list-footer">
+            <span>
+              {{ formatUpdatedAt(note) }}
+            </span>
+
+            @if (note.tags.length > 0) {
+            <span>
+              {{ note.tags.length }}
+              {{ note.tags.length === 1 ? "tag" : "tags" }}
+            </span>
+            }
+          </div>
+        </button>
+        }
+      </div>
+      }
+    </aside>
+
+    <!-- Note Editor -->
+    <main class="note-editor">
+      @if (selectedNote(); as note) {
+
+      <div class="editor-toolbar">
+        <div class="save-status">
+          @if (saveStatus() === 'saving') { Saving... } @else { Saved }
+        </div>
+
+        <div class="editor-actions">
+          <button
+            type="button"
+            class="icon-button"
+            [attr.aria-label]="note.pinned ? 'Unpin note' : 'Pin note'"
+            (click)="togglePinned()"
+          >
+            {{ note.pinned ? "📌" : "📍" }}
+          </button>
+
+          <button
+            type="button"
+            class="delete-button"
+            (click)="deleteSelectedNote()"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+
+      <div class="editor-content">
+        <input
+          type="text"
+          class="note-title-input"
+          placeholder="Untitled Note"
+          [ngModel]="note.title"
+          (ngModelChange)="updateTitle($event)"
+        />
+
+        <textarea
+          class="note-content-input"
+          placeholder="Start writing..."
+          [ngModel]="note.content"
+          (ngModelChange)="updateContent($event)"
+        ></textarea>
+
+        <div class="tags-section">
+          <label for="note-tags"> Tags </label>
+
+          <input
+            id="note-tags"
+            type="text"
+            placeholder="coding, ideas, job-search"
+            [ngModel]="note.tags.join(', ')"
+            (ngModelChange)="updateTags($event)"
+          />
+
+          @if (note.tags.length > 0) {
+          <div class="tag-list">
+            @for (tag of note.tags; track tag) {
+            <span class="tag"> #{{ tag }} </span>
+            }
+          </div>
+          }
+        </div>
+
+        <div class="note-metadata">
+          <span> Created {{ formatUpdatedAt(note) }} </span>
+
+          <span> Updated {{ formatUpdatedAt(note) }} </span>
+        </div>
+      </div>
+
+      } @else {
+
+      <div class="no-note-selected">
+        <div class="no-note-icon">📝</div>
+
+        <h2>Select a note</h2>
+
+        <p>Choose a note from the list or create a new one.</p>
+
+        <button type="button" class="new-note-button" (click)="createNote()">
+          + New Note
+        </button>
+      </div>
+
+      }
+    </main>
+  </div>
+
+  @if (error()) {
+  <div class="error-message">
+    {{ error() }}
+  </div>
+  }
+</div>
