@@ -19,7 +19,14 @@ export interface EventsQuery {
 export class EventsService {
   private readonly http = inject(HttpClient);
 
-  private readonly apiUrl = 'http://localhost:3334/api/events';
+  /**
+   * Production:
+   * The Angular app and Netlify Function share the same origin.
+   *
+   * Local development can continue using the existing events-bridge
+   * until we switch the local development workflow to Netlify Dev.
+   */
+  private readonly apiUrl = '/api/events';
 
   readonly events = signal<LocalEvent[]>([]);
 
@@ -50,9 +57,7 @@ export class EventsService {
       error: (error) => {
         console.error('EventsService error:', error);
 
-        this.error.set(
-          'Unable to load events. Is the events-bridge server running?'
-        );
+        this.error.set('Unable to load events right now.');
 
         this.loading.set(false);
       },
