@@ -68,10 +68,9 @@ async function fetchEvents(params) {
       name: event.name,
       url: event.url,
 
-      start: {
-        localDate: event.dates?.start?.localDate ?? null,
-        localTime: event.dates?.start?.localTime ?? null,
-      },
+      start: event.dates?.start?.localTime
+        ? `${event.dates.start.localDate}T${event.dates.start.localTime}`
+        : event.dates?.start?.localDate ?? null,
 
       status: event.dates?.status?.code ?? null,
 
