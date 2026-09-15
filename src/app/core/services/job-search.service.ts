@@ -20,7 +20,14 @@ export interface JobSearchQuery {
 export class JobSearchService {
   private readonly http = inject(HttpClient);
 
-  private readonly apiUrl = 'http://localhost:3335/api/jobs';
+  /**
+   * Production:
+   * The Angular app and Netlify Function share the same origin.
+   *
+   * Local development can continue using the existing jobs-bridge
+   * until we switch the local development workflow to Netlify Dev.
+   */
+  private readonly apiUrl = '/api/jobs';
 
   readonly listings = signal<JobListing[]>([]);
 
@@ -58,9 +65,7 @@ export class JobSearchService {
       error: (error) => {
         console.error('JobSearchService error:', error);
 
-        this.error.set(
-          'Unable to load job listings. Is the jobs-bridge server running?'
-        );
+        this.error.set('Unable to load job listings right now.');
 
         this.loading.set(false);
       },
