@@ -4,16 +4,30 @@ import Foundation
 let store = EKEventStore()
 let semaphore = DispatchSemaphore(value: 0)
 
+struct UpdatePayload: Codable {
+    let calendar: String?
+    let title: String?
+    let start: String?
+    let end: String?
+    let location: String?
+    let notes: String?
+}
+
 func printUsage() {
     print("""
     Usage:
 
-      CalendarEventKit find <event-id> <occurrence-date>
-      CalendarEventKit delete-occurrence <event-id> <occurrence-date>
+      CalendarEventKit find <calendar> <title> <occurrence-date>
 
-    Example:
+      CalendarEventKit delete-occurrence <calendar> <title> <occurrence-date>
 
-      CalendarEventKit find "56A35F56-E664-4308-9922-CA1297B5D10E" "2026-09-29T19:00:00"
+      CalendarEventKit update <calendar> <title> <occurrence-date> <json-payload>
+
+    Examples:
+
+      CalendarEventKit find "Work" "Bridge Test" "2026-09-17T18:00:00"
+
+      CalendarEventKit delete-occurrence "Work" "Bish heart worm and flea meds" "2026-09-18T16:00:00"
     """)
 }
 
@@ -26,53 +40,37 @@ func parseDate(_ value: String) -> Date? {
     return formatter.date(from: value)
 }
 
+func findCalendar(named calendarName: String) -> EKCalendar? {
+    let calendars = store.calendars(for: .event)
+
+    return calendars.first {
+        $0.title == calendarName
+    }
+}
+
 func findOccurrence(
-    eventID: String,
+    calendarName: String,
+    title: String,
     occurrenceDate: Date
 ) -> EKEvent? {
 
-    // Find the recurring series itself.
-    guard let seriesEvent = store.event(withIdentifier: eventID) else {
-        print("DEBUG: Could not locate base event.")
+    guard let calendar = findCalendar(named: calendarName) else {
+        print("DEBUG: Calendar not found.")
+        print("Calendar: \(calendarName)")
         return nil
     }
 
     print("")
-    print("DEBUG: Base event found")
-    print("Title: \(seriesEvent.title ?? "")")
-    print("Event ID: \(seriesEvent.eventIdentifier ?? "")")
-    print("Start: \(String(describing: seriesEvent.startDate))")
-    print("Occurrence Date: \(String(describing: seriesEvent.occurrenceDate))")
-    print("Recurring: \(seriesEvent.recurrenceRules?.isEmpty == false)")
+    print("DEBUG: Calendar found")
+    print("Calendar: \(calendar.title)")
 
-    // Print recurrence information.
-    if let rules = seriesEvent.recurrenceRules {
-        print("")
-        print("DEBUG: RECURRENCE RULES")
-
-        for rule in rules {
-            print("Frequency: \(rule.frequency.rawValue)")
-            print("Interval: \(rule.interval)")
-            print("Recurrence End: \(String(describing: rule.recurrenceEnd))")
-            print("Days Of Week: \(String(describing: rule.daysOfTheWeek))")
-            print("Months Of Year: \(String(describing: rule.monthsOfTheYear))")
-            print("Weeks Of Year: \(String(describing: rule.weeksOfTheYear))")
-            print("Days Of Year: \(String(describing: rule.daysOfTheYear))")
-            print("Set Positions: \(String(describing: rule.setPositions))")
-        }
-    } else {
-        print("")
-        print("DEBUG: NO RECURRENCE RULES FOUND")
-    }
-
-    // Search around the requested occurrence.
-    let searchStart = seriesEvent.startDate.addingTimeInterval(-60 * 60)
-    let searchEnd = occurrenceDate.addingTimeInterval(60 * 60 * 24)
+    let searchStart = occurrenceDate.addingTimeInterval(-60 * 60)
+    let searchEnd = occurrenceDate.addingTimeInterval(60 * 60)
 
     let predicate = store.predicateForEvents(
         withStart: searchStart,
         end: searchEnd,
-        calendars: [seriesEvent.calendar]
+        calendars: [calendar]
     )
 
     let events = store.events(matching: predicate)
@@ -93,20 +91,127 @@ func findOccurrence(
 
     let tolerance: TimeInterval = 60
 
-    return events.first { event in
-
+    let matches = events.filter { event in
         guard let eventStart = event.startDate else {
             return false
         }
 
-        let sameSeries =
-            event.eventIdentifier == seriesEvent.eventIdentifier
+        let sameTitle = event.title == title
 
         let sameStartTime =
             abs(eventStart.timeIntervalSince(occurrenceDate)) <= tolerance
 
-        return sameSeries && sameStartTime
+        return sameTitle && sameStartTime
     }
+
+    print("")
+    print("DEBUG: Matching events: \(matches.count)")
+
+    if matches.count > 1 {
+        print("WARNING: Multiple events matched.")
+
+        for event in matches {
+            print(
+                "MATCH: \(event.title ?? "") | " +
+                "\(String(describing: event.startDate)) | " +
+                "\(event.eventIdentifier ?? "")"
+            )
+        }
+    }
+
+    return matches.first
+}
+
+func performUpdate(
+    event: EKEvent,
+    payload: UpdatePayload
+) throws {
+
+    if let calendarName = payload.calendar {
+        if let targetCalendar = findCalendar(named: calendarName) {
+            event.calendar = targetCalendar
+        } else {
+            throw NSError(
+                domain: "CalendarEventKit",
+                code: 10,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Calendar not found: \(calendarName)"
+                ]
+            )
+        }
+    }
+
+    if let title = payload.title {
+        event.title = title
+    }
+
+    if let startString = payload.start {
+        guard let startDate = parseDate(startString) else {
+            throw NSError(
+                domain: "CalendarEventKit",
+                code: 11,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Invalid start date: \(startString)"
+                ]
+            )
+        }
+
+        event.startDate = startDate
+    }
+
+    if let endString = payload.end {
+        guard let endDate = parseDate(endString) else {
+            throw NSError(
+                domain: "CalendarEventKit",
+                code: 12,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Invalid end date: \(endString)"
+                ]
+            )
+        }
+
+        event.endDate = endDate
+    }
+
+    if let location = payload.location {
+        event.location = location
+    }
+
+    if let notes = payload.notes {
+        event.notes = notes
+    }
+
+    guard let startDate = event.startDate,
+          let endDate = event.endDate else {
+        throw NSError(
+            domain: "CalendarEventKit",
+            code: 13,
+            userInfo: [
+                NSLocalizedDescriptionKey:
+                    "Event must have valid start and end dates."
+            ]
+        )
+    }
+
+    guard endDate > startDate else {
+        throw NSError(
+            domain: "CalendarEventKit",
+            code: 14,
+            userInfo: [
+                NSLocalizedDescriptionKey:
+                    "Event end must occur after event start."
+            ]
+        )
+    }
+
+    try store.save(
+        event,
+        span: .thisEvent,
+        commit: true
+    )
 }
 
 let arguments = CommandLine.arguments
@@ -118,25 +223,57 @@ guard arguments.count >= 2 else {
 
 let command = arguments[1]
 
-guard command == "find" || command == "delete-occurrence" else {
+guard command == "find" ||
+      command == "delete-occurrence" ||
+      command == "update" else {
+
     print("ERROR: Unknown command '\(command)'")
     printUsage()
     exit(1)
 }
 
-guard arguments.count >= 4 else {
-    print("ERROR: Missing event ID or occurrence date.")
+guard arguments.count >= 5 else {
+    print("ERROR: Missing calendar, title, or occurrence date.")
     printUsage()
     exit(1)
 }
 
-let eventID = arguments[2]
-let occurrenceDateString = arguments[3]
+let calendarName = arguments[2]
+let title = arguments[3]
+let occurrenceDateString = arguments[4]
 
 guard let occurrenceDate = parseDate(occurrenceDateString) else {
     print("ERROR: Invalid occurrence date.")
     print("Expected format: yyyy-MM-dd'T'HH:mm:ss")
     exit(1)
+}
+
+var updatePayload: UpdatePayload?
+
+if command == "update" {
+    guard arguments.count >= 6 else {
+        print("ERROR: Missing update JSON payload.")
+        printUsage()
+        exit(1)
+    }
+
+    let json = arguments[5]
+
+    guard let data = json.data(using: .utf8) else {
+        print("ERROR: Could not read update JSON.")
+        exit(1)
+    }
+
+    do {
+        updatePayload = try JSONDecoder().decode(
+            UpdatePayload.self,
+            from: data
+        )
+    } catch {
+        print("ERROR: Invalid update JSON.")
+        print(error)
+        exit(1)
+    }
 }
 
 store.requestAccess(to: .event) { granted, error in
@@ -154,13 +291,17 @@ store.requestAccess(to: .event) { granted, error in
     }
 
     guard let event = findOccurrence(
-        eventID: eventID,
+        calendarName: calendarName,
+        title: title,
         occurrenceDate: occurrenceDate
     ) else {
+
         print("")
         print("ERROR: Event occurrence not found.")
-        print("Event ID: \(eventID)")
+        print("Calendar: \(calendarName)")
+        print("Title: \(title)")
         print("Occurrence: \(occurrenceDateString)")
+
         semaphore.signal()
         return
     }
@@ -182,24 +323,59 @@ store.requestAccess(to: .event) { granted, error in
         return
     }
 
-    print("")
-    print("Attempting to delete ONLY this occurrence...")
+    if command == "delete-occurrence" {
 
-    do {
-        try store.remove(
-            event,
-            span: .thisEvent,
-            commit: true
-        )
+        print("")
+        print("Attempting to delete ONLY this occurrence...")
 
-        print("SUCCESS")
-        print("Only this occurrence was deleted.")
-    } catch {
-        print("ERROR: EventKit failed to delete occurrence.")
-        print(error)
+        do {
+            try store.remove(
+                event,
+                span: .thisEvent,
+                commit: true
+            )
+
+            print("SUCCESS")
+            print("Only this occurrence was deleted.")
+
+        } catch {
+            print("ERROR: EventKit failed to delete occurrence.")
+            print(error)
+        }
+
+        semaphore.signal()
+        return
     }
 
-    semaphore.signal()
+    if command == "update" {
+
+        guard let payload = updatePayload else {
+            print("ERROR: Missing update payload.")
+            semaphore.signal()
+            return
+        }
+
+        print("")
+        print("Attempting to update this event...")
+
+        do {
+            try performUpdate(
+                event: event,
+                payload: payload
+            )
+
+            print("SUCCESS")
+            print("Event updated successfully.")
+            print("Event ID: \(event.eventIdentifier ?? "")")
+
+        } catch {
+            print("ERROR: EventKit failed to update event.")
+            print(error)
+        }
+
+        semaphore.signal()
+        return
+    }
 }
 
 semaphore.wait()

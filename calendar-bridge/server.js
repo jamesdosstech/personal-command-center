@@ -56,211 +56,153 @@ function buildLocalDateString(year, month, day, hour, minute, second) {
   );
 }
 
+/**
+ * Convert an ISO timestamp from the API into the local date/time format
+ * expected by CalendarEventKit.
+ *
+ * Example:
+ *
+ *   2026-09-18T21:00:00.000Z
+ *
+ * becomes:
+ *
+ *   2026-09-18T16:00:00
+ *
+ * when the Mac is in Dallas/CDT.
+ */
+function buildLocalDateStringFromISO(value) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    throw new Error("Invalid date.");
+  }
+
+  return buildLocalDateString(
+    date.getFullYear(),
+    date.getMonth() + 1,
+    date.getDate(),
+    date.getHours(),
+    date.getMinutes(),
+    date.getSeconds()
+  );
+}
+
 function runAppleCalendarRead() {
   return new Promise((resolve, reject) => {
-    const script = `
-tell application "Calendar"
+    const args = [
+      "-nc",
+      "-nrd",
+      "-ea",
+      "-uid",
+      "-df",
+      "%Y-%m-%d",
+      "-tf",
+      "%H:%M",
+      "eventsToday+7",
+    ];
 
-    set todayDate to current date
-    set time of todayDate to 0
+    console.log("[calendar] Reading Apple Calendar with icalBuddy...");
 
-    set endDate to todayDate + (7 * days)
+    execFile("icalBuddy", args, { timeout: 15000 }, (error, stdout, stderr) => {
+      console.log("[calendar] icalBuddy RAW STDOUT:", JSON.stringify(stdout));
 
-    set output to ""
+      console.log("[calendar] icalBuddy RAW STDERR:", JSON.stringify(stderr));
 
-    set calendarNames to {"Work", "Home", "Calendar", "Family"}
+      if (error) {
+        console.error("[calendar] icalBuddy read error:", error);
 
-    repeat with calendarName in calendarNames
-
-        try
-
-            set currentCalendar to calendar (calendarName as string)
-
-            set matchingEvents to every event of currentCalendar whose start date is greater than or equal to todayDate
-
-            repeat with currentEvent in matchingEvents
-
-                set eventStart to start date of currentEvent
-
-                if eventStart is less than endDate then
-
-                    set eventUID to uid of currentEvent
-                    set eventTitle to summary of currentEvent
-                    set eventLocation to location of currentEvent
-                    set eventNotes to description of currentEvent
-
-                    if eventTitle is missing value then
-                        set eventTitle to ""
-                    end if
-
-                    if eventLocation is missing value then
-                        set eventLocation to ""
-                    end if
-
-                    if eventNotes is missing value then
-                        set eventNotes to ""
-                    end if
-
-                    set startYear to year of eventStart as integer
-                    set startMonth to month of eventStart as integer
-                    set startDay to day of eventStart as integer
-                    set startHour to hours of eventStart as integer
-                    set startMinute to minutes of eventStart as integer
-                    set startSecond to seconds of eventStart as integer
-
-                    set eventEnd to end date of currentEvent
-
-                    set endYear to year of eventEnd as integer
-                    set endMonth to month of eventEnd as integer
-                    set endDay to day of eventEnd as integer
-                    set endHour to hours of eventEnd as integer
-                    set endMinute to minutes of eventEnd as integer
-                    set endSecond to seconds of eventEnd as integer
-
-                    set output to output & ¬
-                        (eventUID as string) & "|" & ¬
-                        (calendarName as string) & "|" & ¬
-                        (eventTitle as string) & "|" & ¬
-                        (startYear as string) & "|" & ¬
-                        (startMonth as string) & "|" & ¬
-                        (startDay as string) & "|" & ¬
-                        (startHour as string) & "|" & ¬
-                        (startMinute as string) & "|" & ¬
-                        (startSecond as string) & "|" & ¬
-                        (endYear as string) & "|" & ¬
-                        (endMonth as string) & "|" & ¬
-                        (endDay as string) & "|" & ¬
-                        (endHour as string) & "|" & ¬
-                        (endMinute as string) & "|" & ¬
-                        (endSecond as string) & "|" & ¬
-                        (eventLocation as string) & "|" & ¬
-                        (eventNotes as string) & linefeed
-
-                end if
-
-            end repeat
-
-        on error errorMessage
-            log "Unable to read calendar " & (calendarName as string) & ": " & errorMessage
-        end try
-
-    end repeat
-
-    return output
-
-end tell
-`;
-
-    console.log("[calendar] Reading Apple Calendar...");
-    console.log("[calendar] APPLESCRIPT:");
-    console.log(script);
-
-    execFile(
-      "osascript",
-      ["-e", script],
-      {
-        timeout: 15000,
-      },
-      (error, stdout, stderr) => {
-        console.log("[calendar] RAW STDOUT:", JSON.stringify(stdout));
-        console.log("[calendar] RAW STDERR:", JSON.stringify(stderr));
-
-        if (error) {
-          console.error("[calendar] AppleScript read error:", error);
-          console.error("[calendar] AppleScript signal:", error.signal);
-          console.error(
-            "[calendar] AppleScript stderr:",
-            JSON.stringify(stderr)
-          );
-
-          reject(new Error(stderr || error.message));
-          return;
-        }
-
-        resolve(stdout);
+        reject(new Error(stderr || error.message));
+        return;
       }
-    );
+
+      resolve(stdout);
+    });
   });
 }
 
 function parseAppleCalendarEvents(output) {
-  if (!output.trim()) {
-    return [];
-  }
-
   const events = [];
+  const lines = output.split(/\r?\n/);
 
-  const lines = output
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
+  let currentEvent = null;
 
   for (const line of lines) {
-    const parts = line.split("|");
+    const trimmed = line.trim();
 
-    if (parts.length < 17) {
-      console.warn("[calendar] Skipping malformed event:", line);
+    if (!trimmed) {
       continue;
     }
 
-    const [
-      id,
-      calendar,
-      title,
-      startYear,
-      startMonth,
-      startDay,
-      startHour,
-      startMinute,
-      startSecond,
-      endYear,
-      endMonth,
-      endDay,
-      endHour,
-      endMinute,
-      endSecond,
-      location,
-      notes,
-    ] = parts;
+    /*
+     * Event title
+     *
+     * Example:
+     *
+     * • Bish heart worm and flea meds
+     */
+    if (trimmed.startsWith("•")) {
+      if (currentEvent) {
+        events.push(currentEvent);
+      }
 
-    const start = buildLocalDateString(
-      Number(startYear),
-      Number(startMonth),
-      Number(startDay),
-      Number(startHour),
-      Number(startMinute),
-      Number(startSecond)
-    );
+      currentEvent = {
+        id: null,
+        calendar: "Work",
+        title: trimmed.replace(/^•\s*/, "").trim(),
+        start: null,
+        end: null,
+        location: "",
+        notes: "",
+      };
 
-    const end = buildLocalDateString(
-      Number(endYear),
-      Number(endMonth),
-      Number(endDay),
-      Number(endHour),
-      Number(endMinute),
-      Number(endSecond)
-    );
-
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-
-    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-      console.warn("[calendar] Skipping event with invalid dates:", line);
       continue;
     }
 
-    events.push({
-      id,
-      calendar,
-      title,
-      start: startDate.toISOString(),
-      end: endDate.toISOString(),
-      location: location || undefined,
-      notes: notes || undefined,
-    });
+    if (!currentEvent) {
+      continue;
+    }
+
+    /*
+     * Date/time line
+     *
+     * Example:
+     *
+     * 2026-09-18 at 16:00 - 17:00
+     */
+    const dateMatch = trimmed.match(
+      /^(\d{4}-\d{2}-\d{2})\s+at\s+(\d{2}:\d{2})\s+-\s+(\d{2}:\d{2})$/
+    );
+
+    if (dateMatch) {
+      const [, date, startTime, endTime] = dateMatch;
+
+      currentEvent.start = new Date(`${date}T${startTime}:00`).toISOString();
+
+      currentEvent.end = new Date(`${date}T${endTime}:00`).toISOString();
+
+      continue;
+    }
+
+    /*
+     * icalBuddy UID
+     *
+     * This remains the API-facing ID.
+     *
+     * IMPORTANT:
+     * It is NOT passed directly to Calendar.app or EventKit.
+     */
+    if (trimmed.startsWith("uid:")) {
+      currentEvent.id = trimmed.substring(4).trim();
+    }
   }
 
-  return events;
+  if (currentEvent) {
+    events.push(currentEvent);
+  }
+
+  return events.filter(
+    (event) => event.id && event.title && event.start && event.end
+  );
 }
 
 function buildRecurrenceRule(recurrence) {
@@ -341,8 +283,11 @@ function createCalendarEvent({
 }) {
   return new Promise((resolve, reject) => {
     const safeCalendar = escapeAppleScriptString(calendar);
+
     const safeTitle = escapeAppleScriptString(title);
+
     const safeLocation = escapeAppleScriptString(location);
+
     const safeNotes = escapeAppleScriptString(notes);
 
     const startDate = new Date(start);
@@ -408,6 +353,7 @@ end tell
 `;
 
     console.log("[calendar] Creating Apple Calendar event...");
+
     console.log("[calendar] Recurrence rule:", recurrenceRule || "none");
 
     execFile(
@@ -419,15 +365,18 @@ end tell
       (error, stdout, stderr) => {
         if (error) {
           console.error("[calendar] AppleScript create error:", error);
+
           console.error("[calendar] stderr:", JSON.stringify(stderr));
 
           reject(new Error(stderr || error.message));
+
           return;
         }
 
         const uid = stdout.trim();
 
         console.log("[calendar] Event created successfully.");
+
         console.log("[calendar] Event UID:", uid);
 
         resolve(uid);
@@ -436,8 +385,50 @@ end tell
   });
 }
 
-function updateCalendarEvent({
-  id,
+/**
+ * Find an event in the current icalBuddy-backed calendar data.
+ *
+ * The ID here is intentionally the icalBuddy UID.
+ *
+ * We use it only to identify which event Angular is referring to.
+ * EventKit receives calendar + title + occurrence date instead.
+ */
+async function findEventById(id) {
+  let events = calendarCache.events;
+
+  const cacheIsValid = Date.now() - calendarCache.timestamp < CACHE_DURATION;
+
+  if (!cacheIsValid) {
+    const output = await runAppleCalendarRead();
+
+    events = parseAppleCalendarEvents(output);
+
+    calendarCache = {
+      events,
+      timestamp: Date.now(),
+    };
+  }
+
+  const event = events.find((currentEvent) => currentEvent.id === id);
+
+  if (!event) {
+    throw new Error(`Calendar event not found: ${id}`);
+  }
+
+  return event;
+}
+
+/**
+ * Run CalendarEventKit for an update.
+ *
+ * EventKit locates the actual event using:
+ *
+ *   calendar + original title + original occurrence start
+ *
+ * The API ID is NOT passed to EventKit.
+ */
+function updateCalendarEventWithEventKit({
+  existingEvent,
   calendar,
   title,
   start,
@@ -446,170 +437,107 @@ function updateCalendarEvent({
   notes,
 }) {
   return new Promise((resolve, reject) => {
-    const safeId = escapeAppleScriptString(id);
+    const eventKitBinary = `${__dirname}/CalendarEventKit`;
 
-    const safeCalendar =
-      calendar !== undefined ? escapeAppleScriptString(calendar) : "";
+    let occurrenceStart;
 
-    const safeTitle = title !== undefined ? escapeAppleScriptString(title) : "";
+    try {
+      occurrenceStart = buildLocalDateStringFromISO(existingEvent.start);
+    } catch (error) {
+      reject(new Error(`Invalid existing event start: ${error.message}`));
 
-    const safeLocation =
-      location !== undefined ? escapeAppleScriptString(location) : "";
-
-    const safeNotes = notes !== undefined ? escapeAppleScriptString(notes) : "";
-
-    let dateCommands = "";
-
-    if (start !== undefined) {
-      const startDate = new Date(start);
-
-      if (Number.isNaN(startDate.getTime())) {
-        reject(new Error("start must be a valid date."));
-        return;
-      }
-
-      dateCommands += buildAppleScriptDateCommands("startDate", startDate);
+      return;
     }
 
-    if (end !== undefined) {
-      const endDate = new Date(end);
+    const payload = {
+      calendar,
+      title,
+      start:
+        start !== undefined ? buildLocalDateStringFromISO(start) : undefined,
+      end: end !== undefined ? buildLocalDateStringFromISO(end) : undefined,
+      location,
+      notes,
+    };
 
-      if (Number.isNaN(endDate.getTime())) {
-        reject(new Error("end must be a valid date."));
-        return;
-      }
+    const payloadJSON = JSON.stringify(payload);
 
-      dateCommands += buildAppleScriptDateCommands("endDate", endDate);
-    }
+    console.log("[calendar] Updating event with EventKit...");
 
-    const script = `
-tell application "Calendar"
+    console.log("[calendar] Calendar:", existingEvent.calendar);
 
-    set targetEvent to missing value
-    set targetCalendarName to ""
+    console.log("[calendar] Original title:", existingEvent.title);
 
-    set calendarList to every calendar
-
-    repeat with currentCalendar in calendarList
-
-        try
-
-            set matchingEvents to (every event of currentCalendar whose uid is "${safeId}")
-
-            if (count of matchingEvents) > 0 then
-                set targetEvent to item 1 of matchingEvents
-                set targetCalendarName to name of currentCalendar
-                exit repeat
-            end if
-
-        end try
-
-    end repeat
-
-    if targetEvent is missing value then
-        error "Calendar event not found: ${safeId}"
-    end if
-
-${dateCommands}
-
-${
-  calendar !== undefined
-    ? `    set targetCalendar to calendar "${safeCalendar}"
-
-    if targetCalendarName is not "${safeCalendar}" then
-        set calendar of targetEvent to targetCalendar
-    end if
-`
-    : ""
-}
-
-${
-  title !== undefined
-    ? `    set summary of targetEvent to "${safeTitle}"
-`
-    : ""
-}
-
-${
-  start !== undefined
-    ? `    set properties of targetEvent to {start date:startDate, end date:endDate}
-`
-    : ""
-}
-
-${
-  end !== undefined && start === undefined
-    ? `    set end date of targetEvent to endDate
-`
-    : ""
-}
-
-${
-  location !== undefined
-    ? `    set location of targetEvent to "${safeLocation}"
-`
-    : ""
-}
-
-${
-  notes !== undefined
-    ? `    set description of targetEvent to "${safeNotes}"
-`
-    : ""
-}
-
-    return uid of targetEvent
-
-end tell
-`;
-
-    console.log("[calendar] Updating Apple Calendar event:", id);
+    console.log("[calendar] Original occurrence:", occurrenceStart);
 
     execFile(
-      "osascript",
-      ["-e", script],
+      eventKitBinary,
+      [
+        "update",
+        existingEvent.calendar,
+        existingEvent.title,
+        occurrenceStart,
+        payloadJSON,
+      ],
       {
         timeout: 15000,
       },
       (error, stdout, stderr) => {
-        if (error) {
-          console.error("[calendar] AppleScript update error:", error);
-          console.error("[calendar] stderr:", JSON.stringify(stderr));
+        console.log("[calendar] EventKit stdout:", JSON.stringify(stdout));
 
-          reject(new Error(stderr || error.message));
+        console.log("[calendar] EventKit stderr:", JSON.stringify(stderr));
+
+        if (error) {
+          console.error("[calendar] EventKit update error:", error);
+
+          reject(new Error(stderr?.trim() || stdout?.trim() || error.message));
+
           return;
         }
 
-        const uid = stdout.trim();
+        console.log("[calendar] Calendar event updated successfully.");
 
-        console.log("[calendar] Event updated successfully.");
-
-        resolve(uid);
+        resolve(existingEvent.id);
       }
     );
   });
 }
 
-function deleteCalendarEventOccurrence(id, occurrenceStart) {
+/**
+ * Delete one occurrence using EventKit.
+ *
+ * Again, the icalBuddy ID is only used to identify
+ * the event in our API data.
+ */
+function deleteCalendarEventOccurrence(existingEvent) {
   return new Promise((resolve, reject) => {
-    const parsedOccurrenceStart = new Date(occurrenceStart);
+    const eventKitBinary = `${__dirname}/CalendarEventKit`;
 
-    if (Number.isNaN(parsedOccurrenceStart.getTime())) {
-      reject(new Error("occurrenceStart must be a valid date."));
+    let occurrenceStart;
+
+    try {
+      occurrenceStart = buildLocalDateStringFromISO(existingEvent.start);
+    } catch (error) {
+      reject(new Error(`Invalid occurrence start: ${error.message}`));
+
       return;
     }
 
-    const eventKitBinary = `${__dirname}/CalendarEventKit`;
+    console.log("[calendar] Deleting Calendar occurrence with EventKit...");
 
-    console.log(
-      "[calendar] Deleting Calendar occurrence with EventKit:",
-      id,
-      occurrenceStart
-    );
+    console.log("[calendar] Calendar:", existingEvent.calendar);
+
+    console.log("[calendar] Title:", existingEvent.title);
+
+    console.log("[calendar] Occurrence:", occurrenceStart);
 
     execFile(
       eventKitBinary,
-      ["delete-occurrence", id, occurrenceStart],
+      [
+        "delete-occurrence",
+        existingEvent.calendar,
+        existingEvent.title,
+        occurrenceStart,
+      ],
       {
         timeout: 15000,
       },
@@ -628,139 +556,82 @@ function deleteCalendarEventOccurrence(id, occurrenceStart) {
 
         console.log("[calendar] Calendar occurrence deleted successfully.");
 
-        resolve(id);
+        resolve(existingEvent.id);
       }
     );
   });
 }
 
-// function deleteCalendarEventOccurrence(id, occurrenceStart) {
-//   return new Promise((resolve, reject) => {
-//     const safeId = escapeAppleScriptString(id);
-//     const parsedOccurrenceStart = new Date(occurrenceStart);
+/**
+ * Series deletion is intentionally still using Calendar.app
+ * for now.
+ *
+ * We have not yet independently proven a safe EventKit
+ * full-series deletion strategy.
+ */
+function deleteCalendarEvent(id) {
+  return new Promise((resolve, reject) => {
+    const safeId = escapeAppleScriptString(id);
 
-//     if (Number.isNaN(parsedOccurrenceStart.getTime())) {
-//       reject(new Error("occurrenceStart must be a valid date."));
-//       return;
-//     }
+    const script = `
+tell application "Calendar"
 
-//     const occurrenceDateCommands = buildAppleScriptDateCommands(
-//       "occurrenceDate",
-//       parsedOccurrenceStart
-//     );
+    set targetEvent to missing value
 
-//     const script = `
-// tell application "Calendar"
+    repeat with currentCalendar in every calendar
 
-//     set targetEvent to missing value
+        try
 
-//     set calendarList to every calendar
+            set matchingEvents to (every event of currentCalendar whose uid is "${safeId}")
 
-//     repeat with currentCalendar in calendarList
+            if (count of matchingEvents) > 0 then
+                set targetEvent to item 1 of matchingEvents
+                exit repeat
+            end if
 
-//         try
+        end try
 
-//             set matchingEvents to (every event of currentCalendar whose uid is "${safeId}")
+    end repeat
 
-//             if (count of matchingEvents) > 0 then
-//                 set targetEvent to item 1 of matchingEvents
-//                 exit repeat
-//             end if
+    if targetEvent is missing value then
+        error "Calendar event not found: ${safeId}"
+    end if
 
-//         end try
+    delete targetEvent
 
-//     end repeat
+    return "${safeId}"
 
-//     if targetEvent is missing value then
-//         error "Calendar event not found: ${safeId}"
-//     end if
+end tell
+`;
 
-// ${occurrenceDateCommands}
+    console.log("[calendar] Deleting Apple Calendar series:", id);
 
-//     set existingExcludedDates to excluded dates of targetEvent
+    execFile(
+      "osascript",
+      ["-e", script],
+      {
+        timeout: 15000,
+      },
+      (error, stdout, stderr) => {
+        if (error) {
+          console.error("[calendar] AppleScript series delete error:", error);
 
-//     set newExcludedDates to existingExcludedDates & {occurrenceDate}
+          console.error("[calendar] stderr:", JSON.stringify(stderr));
 
-//     set excluded dates of targetEvent to newExcludedDates
+          reject(new Error(stderr || error.message));
 
-//     delay 1
+          return;
+        }
 
-//     set verificationEvent to missing value
+        const uid = stdout.trim();
 
-//     set verificationCalendarList to every calendar
+        console.log("[calendar] Event series deleted successfully:", uid);
 
-//     repeat with verificationCalendar in verificationCalendarList
-
-//         try
-
-//             set verificationEvents to (every event of verificationCalendar whose uid is "${safeId}")
-
-//             if (count of verificationEvents) > 0 then
-//                 set verificationEvent to item 1 of verificationEvents
-//                 exit repeat
-//             end if
-
-//         end try
-
-//     end repeat
-
-//     if verificationEvent is missing value then
-//         error "Calendar event disappeared while verifying occurrence deletion."
-//     end if
-
-//     set savedExcludedDates to excluded dates of verificationEvent
-
-//     set occurrenceWasExcluded to false
-
-//     repeat with savedDate in savedExcludedDates
-//         if (savedDate as date) is occurrenceDate then
-//             set occurrenceWasExcluded to true
-//             exit repeat
-//         end if
-//     end repeat
-
-//     if occurrenceWasExcluded is false then
-//         error "Apple Calendar did not persist the requested excluded occurrence."
-//     end if
-
-//     return uid of verificationEvent
-
-// end tell
-// `;
-
-//     console.log(
-//       "[calendar] Deleting Apple Calendar occurrence:",
-//       id,
-//       occurrenceStart
-//     );
-
-//     execFile(
-//       "osascript",
-//       ["-e", script],
-//       {
-//         timeout: 15000,
-//       },
-//       (error, stdout, stderr) => {
-//         if (error) {
-//           console.error(
-//             "[calendar] AppleScript occurrence delete error:",
-//             error
-//           );
-//           console.error("[calendar] stderr:", JSON.stringify(stderr));
-
-//           reject(new Error(stderr || error.message));
-//           return;
-//         }
-
-//         const uid = stdout.trim();
-
-//         console.log("[calendar] Calendar occurrence deletion verified:", uid);
-
-//         resolve(uid);
-//       }
-//     );
-//   });
-// }
+        resolve(uid);
+      }
+    );
+  });
+}
 
 function clearCalendarCache() {
   calendarCache = {
@@ -768,6 +639,12 @@ function clearCalendarCache() {
     timestamp: 0,
   };
 }
+
+/*
+|--------------------------------------------------------------------------
+| GET CALENDAR
+|--------------------------------------------------------------------------
+*/
 
 app.get("/api/calendar/today", async (req, res) => {
   try {
@@ -808,6 +685,12 @@ app.get("/api/calendar/today", async (req, res) => {
   }
 });
 
+/*
+|--------------------------------------------------------------------------
+| CREATE
+|--------------------------------------------------------------------------
+*/
+
 app.post("/api/calendar/events", async (req, res) => {
   try {
     const {
@@ -827,6 +710,7 @@ app.post("/api/calendar/events", async (req, res) => {
     }
 
     const startDate = new Date(start);
+
     const endDate = new Date(end);
 
     if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
@@ -884,6 +768,12 @@ app.post("/api/calendar/events", async (req, res) => {
   }
 });
 
+/*
+|--------------------------------------------------------------------------
+| UPDATE
+|--------------------------------------------------------------------------
+*/
+
 app.put("/api/calendar/events/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -932,6 +822,7 @@ app.put("/api/calendar/events/:id", async (req, res) => {
 
     if (start !== undefined && end !== undefined) {
       const startDate = new Date(start);
+
       const endDate = new Date(end);
 
       if (endDate <= startDate) {
@@ -941,8 +832,16 @@ app.put("/api/calendar/events/:id", async (req, res) => {
       }
     }
 
-    const updatedId = await updateCalendarEvent({
-      id,
+    /*
+     * Find the original event using the icalBuddy ID.
+     *
+     * This gives us the original title and occurrence
+     * date required by EventKit.
+     */
+    const existingEvent = await findEventById(id);
+
+    const updatedId = await updateCalendarEventWithEventKit({
+      existingEvent,
       calendar,
       title,
       start,
@@ -974,68 +873,84 @@ app.put("/api/calendar/events/:id", async (req, res) => {
   }
 });
 
+/*
+|--------------------------------------------------------------------------
+| DELETE
+|--------------------------------------------------------------------------
+*/
+
 app.delete("/api/calendar/events/:id", async (req, res) => {
+  const { id } = req.params;
+  const mode = req.query.mode || "occurrence";
+
   try {
-    const { id } = req.params;
-    const { mode = "series", occurrenceStart } = req.body || {};
+    console.log(`[calendar] DELETE request: id=${id}, mode=${mode}`);
 
-    if (!id) {
-      return res.status(400).json({
-        error: "Event ID is required.",
-      });
-    }
-
-    if (!["series", "occurrence"].includes(mode)) {
-      return res.status(400).json({
-        error: 'mode must be either "series" or "occurrence".',
-      });
-    }
-
-    if (mode === "occurrence" && !occurrenceStart) {
-      return res.status(400).json({
-        error: "occurrenceStart is required when mode is occurrence.",
-      });
-    }
-
+    /*
+     * OCCURRENCE DELETE
+     *
+     * icalBuddy gives us the API-facing UID.
+     * EventKit is then responsible for finding the actual
+     * Calendar event using calendar + title + occurrence start.
+     */
     if (mode === "occurrence") {
-      const deletedId = await deleteCalendarEventOccurrence(
-        id,
-        occurrenceStart
+      console.log(`[calendar] Deleting calendar occurrence: ${id}`);
+
+      const existingEvent = await findEventById(id);
+
+      if (!existingEvent) {
+        return res.status(404).json({
+          error: `Calendar event not found: ${id}`,
+        });
+      }
+
+      console.log(
+        `[calendar] Found occurrence: "${existingEvent.title}" ` +
+          `on ${existingEvent.calendar} at ${existingEvent.start}`
       );
+
+      await deleteCalendarEventOccurrence(existingEvent);
 
       clearCalendarCache();
 
       return res.json({
         success: true,
-        id: deletedId,
+        id,
         mode: "occurrence",
-        occurrenceStart,
       });
     }
 
-    await deleteCalendarEvent(id);
+    /*
+     * SERIES DELETE
+     *
+     * Keep the existing AppleScript implementation for now.
+     * We have not yet replaced/proven full-series deletion through EventKit.
+     */
+    console.log(`[calendar] Deleting Apple Calendar series: ${id}`);
+
+    const deletedId = await deleteCalendarEvent(id);
 
     clearCalendarCache();
 
-    res.json({
+    return res.json({
       success: true,
-      id,
+      id: deletedId,
       mode: "series",
     });
   } catch (error) {
     console.error("[calendar] Calendar delete route error:", error);
 
-    if (error.message.includes("Calendar event not found")) {
-      return res.status(404).json({
-        error: error.message,
-      });
-    }
-
     res.status(500).json({
-      error: error.message,
+      error: error.message || "Failed to delete calendar event",
     });
   }
 });
+
+/*
+|--------------------------------------------------------------------------
+| HEALTH
+|--------------------------------------------------------------------------
+*/
 
 app.get("/api/health", (req, res) => {
   res.json({
